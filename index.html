@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>受領書</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="theme-color" content="#1f3a5f">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 body{font-family:sans-serif;margin:16px}
@@ -25,6 +29,7 @@ label.btn{padding:8px;font-size:15px;width:60%;margin:8px auto}
 <canvas id="sig"></canvas>
 <button onclick="clearSig()" style="background:#777">サインを消す</button>
 <button onclick="savePdf()">PDFで保存</button>
+<button onclick="saveIcon()" style="background:#1f3a5f">アイコンを保存（一時的）</button>
 <script>
 const photos=[];
 document.getElementById('cam').onchange=e=>{
@@ -57,6 +62,18 @@ cv.onpointerdown=e=>{drawing=true;ctx.beginPath();ctx.moveTo(...pos(e));};
 cv.onpointermove=e=>{if(drawing){ctx.lineTo(...pos(e));ctx.stroke();}};
 cv.onpointerup=cv.onpointerleave=()=>drawing=false;
 function clearSig(){ctx.clearRect(0,0,cv.width,cv.height);}
+
+// アイコン画像を作って保存（アイコン設定が終わったら消してOK）
+function saveIcon(){
+  const c=document.createElement('canvas');c.width=512;c.height=512;
+  const g=c.getContext('2d');
+  g.fillStyle='#1f3a5f';g.fillRect(0,0,512,512);
+  g.strokeStyle='#fff';g.lineWidth=6;g.strokeRect(70,70,372,372);
+  g.lineWidth=2;g.strokeRect(84,84,344,344);
+  g.fillStyle='#fff';g.textAlign='center';g.textBaseline='middle';
+  g.font='bold 240px "Noto Serif JP",serif';g.fillText('受',256,266);
+  const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='icon.png';a.click();
+}
 
 // A4を1枚の画像として組み立ててPDF化
 function savePdf(){
