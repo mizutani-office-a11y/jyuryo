@@ -8,8 +8,10 @@
 <style>
 body{font-family:sans-serif;margin:16px}
 button,label.btn{display:block;width:100%;padding:14px;margin:8px 0;font-size:18px;text-align:center;background:#1976d2;color:#fff;border:none;border-radius:8px}
+label.btn{padding:8px;font-size:15px;width:60%;margin:8px auto}
 #photos img{width:30%;margin:1%;border:1px solid #ccc}
-#sig{border:2px solid #333;width:100%;height:200px;touch-action:none;background:#fff}
+#sig{border:2px solid #333;width:100%;height:200px;touch-action:none;background:#fff;box-sizing:border-box;display:block}
+@media (orientation:landscape){#sig{height:70vh}}
 </style>
 </head>
 <body>
@@ -42,6 +44,13 @@ document.getElementById('cam').onchange=e=>{
 const cv=document.getElementById('sig'),ctx=cv.getContext('2d');
 function fit(){cv.width=cv.clientWidth;cv.height=cv.clientHeight;ctx.lineWidth=3;ctx.lineCap='round';}
 fit();
+// 画面回転時にサイン欄を作り直す（書いたサインは引き伸ばして残す）
+let rt;
+window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{
+  const old=document.createElement('canvas');old.width=cv.width;old.height=cv.height;
+  old.getContext('2d').drawImage(cv,0,0);
+  fit();ctx.drawImage(old,0,0,cv.width,cv.height);
+},200);});
 let drawing=false;
 const pos=e=>{const b=cv.getBoundingClientRect();return[e.clientX-b.left,e.clientY-b.top];};
 cv.onpointerdown=e=>{drawing=true;ctx.beginPath();ctx.moveTo(...pos(e));};
