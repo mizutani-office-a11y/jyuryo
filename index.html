@@ -54,7 +54,10 @@ let rt;
 window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{
   const old=document.createElement('canvas');old.width=cv.width;old.height=cv.height;
   old.getContext('2d').drawImage(cv,0,0);
-  fit();ctx.drawImage(old,0,0,cv.width,cv.height);
+  fit();
+  const s=Math.min(cv.width/old.width,cv.height/old.height);
+  const w=old.width*s,h=old.height*s;
+  ctx.drawImage(old,(cv.width-w)/2,(cv.height-h)/2,w,h);
 },200);});
 let drawing=false;
 const pos=e=>{const b=cv.getBoundingClientRect();return[e.clientX-b.left,e.clientY-b.top];};
