@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>受領書</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+body{font-family:sans-serif;margin:16px}
+button,label.btn{display:block;width:100%;padding:14px;margin:8px 0;font-size:18px;text-align:center;background:#1976d2;color:#fff;border:none;border-radius:8px}
+#photos img{width:30%;margin:1%;border:1px solid #ccc}
+#sig{border:2px solid #333;width:100%;height:200px;touch-action:none;background:#fff}
+</style>
+</head>
+<body>
+<h2>受領書</h2>
+<input id="karte" placeholder="案件カルテ番号を入力" style="width:100%;padding:12px;font-size:18px;box-sizing:border-box;border:1px solid #999;border-radius:8px">
+<label class="btn">書類を撮影
+  <input type="file" accept="image/*" capture="environment" id="cam" hidden>
+</label>
+<div id="photos"></div>
+<p>上記の書類を受け取りました。</p>
+<canvas id="sig"></canvas>
+<button onclick="clearSig()" style="background:#777">サインを消す</button>
+<button onclick="savePdf()">PDFで保存</button>
+<script>
+const photos=[];
+document.getElementById('cam').onchange=e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      photos.push(img);
+      const t=document.createElement('img');t.src=img.src;
+      document.getElementById('photos').appendChild(t);
+    };
+    img.src=r.result;
+  };
+  r.readAsDataURL(f); e.target.value='';
+};
+const cv=document.getElementById('sig'),ctx=cv.getContext('2d');
+function fit(){cv.width=cv.clientWidth;cv.height=cv.clientHeight;ctx.lineWidth=3;ctx.lineCap='round';}
+fit();
+let drawing=false;
+const pos=e=>{const b=cv.getBoundingClientRect();return[e.clientX-b.left,e.clientY-b.top];};
+cv.onpointerdown=e=>{drawing=true;ctx.beginPath();ctx.moveTo(...pos(e));};
+cv.onpointermove=e=>{if(drawing){ctx.lineTo(...pos(e));ctx.stroke();}};
+cv.onpointerup=cv.onpointerleave=()=>drawing=false;
+function clearSig(){ctx.clearRect(0,0,cv.width,cv.height);}
+
+// A4を1枚の画像として組み立ててPDF化
+function savePdf(){
+  if(!photos.length){alert('書類を撮影してください');return;}
+  const W=1240,H=1754,M=90,NAVY='#1f3a5f',GRAY='#666';
+  const FONT='"Noto Serif JP","Yu Mincho",serif';
+  const pg=document.createElement('canvas');pg.width=W;pg.height=H;
+  const g=pg.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,W,H);
+  // 外枠（二重線）
+  g.strokeStyle=NAVY;g.lineWidth=4;g.strokeRect(40,40,W-80,H-80);
+  g.lineWidth=1;g.strokeRect(52,52,W-104,H-104);
+  const now=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  const no=now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'-'+pad(now.getHours())+pad(now.getMinutes());
+  const jd=now.getFullYear()+'年'+(now.getMonth()+1)+'月'+now.getDate()+'日 '+pad(now.getHours())+':'+pad(now.getMinutes());
+  // 右上：案件カルテ番号と日付
+  g.fillStyle=GRAY;g.textAlign='right';g.font='22px '+FONT;
+  g.fillText('案件カルテ番号：'+(document.getElementById('karte').value||'未入力'),W-M,110);
+  g.fillText(jd,W-M,142);
+  // タイトル（小さめ）
+  g.fillStyle=NAVY;g.textAlign='center';g.font='bold 52px '+FONT;
+  g.fillText('受　領　書',W/2,215);
+  g.fillRect(W/2-150,235,300,3);g.fillRect(W/2-150,243,300,1.5);
+  // 本文
+  g.fillStyle='#222';g.font='26px '+FONT;
+  g.fillText('下記の書類を確かに受領いたしました。',W/2,300);
+  // 写真エリア（大きく・横並び）
+  g.textAlign='left';g.fillStyle=NAVY;g.font='bold 24px '+FONT;
+  g.fillText('■ 受領書類（'+photos.length+'点）',M,355);
+  const top=372,areaH=1110,gap=18,inner=16;
+  g.fillStyle='#f5f7fa';g.fillRect(M,top,W-2*M,areaH);
+  const n=photos.length,cols=Math.min(n,3),rows=Math.ceil(n/cols);
+  const aw=W-2*M-2*inner,ah=areaH-2*inner;
+  const cw=(aw-gap*(cols-1))/cols,ch=(ah-gap*(rows-1))/rows-28;
+  photos.forEach((img,i)=>{
+    const c=i%cols,r=Math.floor(i/cols);
+    const s=Math.min(cw/img.width,ch/img.height);
+    const w=img.width*s,h=img.height*s;
+    const cx=M+inner+c*(cw+gap),cy=top+inner+r*(ch+28+gap);
+    const x=cx+(cw-w)/2,y=cy+(ch-h)/2;
+    g.shadowColor='rgba(0,0,0,0.25)';g.shadowBlur=8;g.shadowOffsetY=3;
+    g.fillStyle='#fff';g.fillRect(x-5,y-5,w+10,h+10);
+    g.shadowColor='transparent';
+    g.drawImage(img,x,y,w,h);
+    g.fillStyle=GRAY;g.textAlign='center';g.font='20px '+FONT;
+    g.fillText('書類 '+(i+1),cx+cw/2,cy+ch+24);
+    g.textAlign='left';
+  });
+  // 署名欄（小さめ）
+  const sy=1530;
+  g.fillStyle=NAVY;g.font='bold 24px '+FONT;
+  g.fillText('■ 受領者署名',M,sy);
+  const sh=120,sw=Math.min(520,sh*cv.width/cv.height);
+  g.drawImage(cv,M,sy+12,sw,sh);
+  g.strokeStyle='#333';g.lineWidth=2;
+  g.beginPath();g.moveTo(M,sy+12+sh);g.lineTo(M+520,sy+12+sh);g.stroke();
+  g.fillStyle=GRAY;g.font='20px '+FONT;g.textAlign='right';
+  g.fillText('受領日時：'+jd,W-M,sy+12+sh);
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF({format:'a4'});
+  pdf.addImage(pg.toDataURL('image/jpeg',0.9),'JPEG',0,0,210,297);
+  pdf.save('受領書_'+no+'.pdf');
+}
+</script>
+</body>
+</html>
