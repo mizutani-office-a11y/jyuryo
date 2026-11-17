@@ -83,8 +83,8 @@ function savePdf(){
   if(!photos.length){alert('書類を撮影してください');return;}
   const W=1240,H=1754,M=90,NAVY='#1f3a5f',GRAY='#666';
   const FONT='"Noto Serif JP","Yu Mincho",serif';
-  const pg=document.createElement('canvas');pg.width=W;pg.height=H;
-  const g=pg.getContext('2d');
+  const pg=document.createElement('canvas');pg.width=W*3;pg.height=H*3;
+  const g=pg.getContext('2d');g.scale(3,3);g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';
   g.fillStyle='#fff';g.fillRect(0,0,W,H);
   // 外枠（二重線）
   g.strokeStyle=NAVY;g.lineWidth=4;g.strokeRect(40,40,W-80,H-80);
@@ -112,6 +112,7 @@ function savePdf(){
   const n=photos.length,cols=Math.min(n,3),rows=Math.ceil(n/cols);
   const aw=W-2*M-2*inner,ah=areaH-2*inner;
   const cw=(aw-gap*(cols-1))/cols,ch=(ah-gap*(rows-1))/rows-28;
+  const slots=[];
   photos.forEach((img,i)=>{
     const c=i%cols,r=Math.floor(i/cols);
     const s=Math.min(cw/img.width,ch/img.height);
@@ -121,7 +122,7 @@ function savePdf(){
     g.shadowColor='rgba(0,0,0,0.25)';g.shadowBlur=8;g.shadowOffsetY=3;
     g.fillStyle='#fff';g.fillRect(x-5,y-5,w+10,h+10);
     g.shadowColor='transparent';
-    g.drawImage(img,x,y,w,h);
+    slots.push({img,x,y,w,h});
     g.fillStyle=GRAY;g.textAlign='center';g.font='20px '+FONT;
     g.fillText('書類 '+(i+1),cx+cw/2,cy+ch+24);
     g.textAlign='left';
@@ -138,7 +139,17 @@ function savePdf(){
   g.fillText('受領日時：'+jd,W-M,sy+12+sh);
   const {jsPDF}=window.jspdf;
   const pdf=new jsPDF({format:'a4'});
-  pdf.addImage(pg.toDataURL('image/jpeg',0.9),'JPEG',0,0,210,297);
+  pdf.addImage(pg.toDataURL('image/jpeg',0.92),'JPEG',0,0,210,297);
+  // 写真は高画質のまま直接貼る（1枚あたり約1MB）
+  const k=210/W;
+  slots.forEach(s=>{
+    const L=2400,r=Math.min(1,L/Math.max(s.img.width,s.img.height));
+    const t=document.createElement('canvas');
+    t.width=Math.round(s.img.width*r);t.height=Math.round(s.img.height*r);
+    const tg=t.getContext('2d');tg.imageSmoothingQuality='high';
+    tg.drawImage(s.img,0,0,t.width,t.height);
+    pdf.addImage(t.toDataURL('image/jpeg',0.85),'JPEG',s.x*k,s.y*k,s.w*k,s.h*k);
+  });
   pdf.save('受領書_'+no+'.pdf');
 }
 </script>
