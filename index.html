@@ -38,7 +38,7 @@ document.getElementById('cam').onchange=e=>{
   r.onload=()=>{
     const img=new Image();
     img.onload=()=>{
-      photos.push(img);
+      photos.push(img);saveState();
       const t=document.createElement('img');t.src=img.src;
       document.getElementById('photos').appendChild(t);
     };
@@ -63,8 +63,31 @@ let drawing=false;
 const pos=e=>{const b=cv.getBoundingClientRect();return[e.clientX-b.left,e.clientY-b.top];};
 cv.onpointerdown=e=>{drawing=true;ctx.beginPath();ctx.moveTo(...pos(e));};
 cv.onpointermove=e=>{if(drawing){ctx.lineTo(...pos(e));ctx.stroke();}};
-cv.onpointerup=cv.onpointerleave=()=>drawing=false;
-function clearSig(){ctx.clearRect(0,0,cv.width,cv.height);}
+cv.onpointerup=cv.onpointerleave=()=>{if(drawing){drawing=false;saveState();}};
+function clearSig(){ctx.clearRect(0,0,cv.width,cv.height);saveState();}
+
+// 保存前のデータをスマホ内（IndexedDB）に一時保存。電源を切っても残り、PDF保存後に自動で消える
+function db(){return new Promise((ok,ng)=>{const q=indexedDB.open('juryo',1);q.onupgradeneeded=()=>q.result.createObjectStore('s');q.onsuccess=()=>ok(q.result);q.onerror=()=>ng(q.error);});}
+async function put(v){const d=await db();return new Promise(ok=>{const t=d.transaction('s','readwrite');t.objectStore('s').put(v,'state');t.oncomplete=ok;});}
+async function get(){const d=await db();return new Promise(ok=>{const q=d.transaction('s').objectStore('s').get('state');q.onsuccess=()=>ok(q.result);});}
+function saveState(){put({karte:document.getElementById('karte').value,photos:photos.map(p=>p.src),sig:cv.toDataURL('image/png')}).catch(()=>{});}
+function resetAll(){photos.length=0;document.getElementById('photos').innerHTML='';document.getElementById('karte').value='';ctx.clearRect(0,0,cv.width,cv.height);put(null).catch(()=>{});}
+document.getElementById('karte').addEventListener('input',saveState);
+// 起動時に前回のデータを復元
+get().then(s=>{
+  if(!s)return;
+  document.getElementById('karte').value=s.karte||'';
+  (s.photos||[]).forEach(src=>{
+    const img=new Image();img.src=src;photos.push(img);
+    const t=document.createElement('img');t.src=src;
+    document.getElementById('photos').appendChild(t);
+  });
+  if(s.sig){const si=new Image();si.onload=()=>{
+    const k=Math.min(cv.width/si.width,cv.height/si.height);
+    const w=si.width*k,h=si.height*k;
+    ctx.drawImage(si,(cv.width-w)/2,(cv.height-h)/2,w,h);
+  };si.src=s.sig;}
+}).catch(()=>{});
 
 // アイコン画像を作って保存（アイコン設定が終わったら消してOK）
 function saveIcon(){
@@ -151,6 +174,7 @@ function savePdf(){
     pdf.addImage(t.toDataURL('image/jpeg',0.85),'JPEG',s.x*k,s.y*k,s.w*k,s.h*k);
   });
   pdf.save('受領書_'+no+'.pdf');
+  resetAll();
 }
 </script>
 </body>
