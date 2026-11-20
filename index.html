@@ -25,6 +25,7 @@ label.btn{padding:8px;font-size:15px;width:60%;margin:8px auto}
   <input type="file" accept="image/*" capture="environment" id="cam" hidden>
 </label>
 <div id="photos"></div>
+<small style="color:#666">※写真をタップすると削除できます</small>
 <p>上記の書類を受け取りました。</p>
 <canvas id="sig"></canvas>
 <button onclick="clearSig()" style="background:#777">サインを消す</button>
@@ -39,8 +40,8 @@ document.getElementById('cam').onchange=e=>{
     const img=new Image();
     img.onload=()=>{
       photos.push(img);saveState();
-      const t=document.createElement('img');t.src=img.src;
-      document.getElementById('photos').appendChild(t);
+      // プレビュー表示（タップで削除）
+      addPreview(img);
     };
     img.src=r.result;
   };
@@ -71,6 +72,15 @@ function db(){return new Promise((ok,ng)=>{const q=indexedDB.open('juryo',1);q.o
 async function put(v){const d=await db();return new Promise(ok=>{const t=d.transaction('s','readwrite');t.objectStore('s').put(v,'state');t.oncomplete=ok;});}
 async function get(){const d=await db();return new Promise(ok=>{const q=d.transaction('s').objectStore('s').get('state');q.onsuccess=()=>ok(q.result);});}
 function saveState(){put({karte:document.getElementById('karte').value,photos:photos.map(p=>p.src),sig:cv.toDataURL('image/png')}).catch(()=>{});}
+function addPreview(img){
+  const t=document.createElement('img');t.src=img.src;
+  t.onclick=()=>{
+    if(!confirm('この写真を消しますか？'))return;
+    const i=photos.indexOf(img);if(i>=0)photos.splice(i,1);
+    t.remove();saveState();
+  };
+  document.getElementById('photos').appendChild(t);
+}
 function resetAll(){photos.length=0;document.getElementById('photos').innerHTML='';document.getElementById('karte').value='';ctx.clearRect(0,0,cv.width,cv.height);put(null).catch(()=>{});}
 document.getElementById('karte').addEventListener('input',saveState);
 // 起動時に前回のデータを復元
@@ -79,8 +89,8 @@ get().then(s=>{
   document.getElementById('karte').value=s.karte||'';
   (s.photos||[]).forEach(src=>{
     const img=new Image();img.src=src;photos.push(img);
-    const t=document.createElement('img');t.src=src;
-    document.getElementById('photos').appendChild(t);
+    // 復元した写真のプレビュー
+    addPreview(img);
   });
   if(s.sig){const si=new Image();si.onload=()=>{
     const k=Math.min(cv.width/si.width,cv.height/si.height);
