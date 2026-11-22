@@ -127,7 +127,21 @@ $('sealCam').onchange=async e=>{
   {// PNG画像をそのまま取り込む（大きすぎる場合だけ縮小）
     const r=Math.min(1,1200/Math.max(src.width,src.height));
     const c2=document.createElement('canvas');c2.width=Math.round(src.width*r);c2.height=Math.round(src.height*r);
-    c2.getContext('2d').drawImage(src,0,0,c2.width,c2.height);
+    const g2=c2.getContext('2d');g2.drawImage(src,0,0,c2.width,c2.height);
+    // 画像のまわりの透明・白い余白を自動で切り取る
+    const dd=g2.getImageData(0,0,c2.width,c2.height).data;
+    let a0=c2.width,b0=c2.height,a1=-1,b1=-1;
+    for(let i=0;i<dd.length;i+=4){
+      if(dd[i+3]<20||(dd[i]>235&&dd[i+1]>235&&dd[i+2]>235))continue;
+      const x=(i/4)%c2.width,y=Math.floor(i/4/c2.width);
+      if(x<a0)a0=x;if(x>a1)a1=x;if(y<b0)b0=y;if(y>b1)b1=y;
+    }
+    if(a1>=0){
+      const c3=document.createElement('canvas');c3.width=a1-a0+1;c3.height=b1-b0+1;
+      c3.getContext('2d').drawImage(c2,a0,b0,c3.width,c3.height,0,0,c3.width,c3.height);
+      seal=await loadImg(c3.toDataURL('image/png'));
+      $('sealPrev').src=seal.src;$('sealPrev').hidden=false;saveSettings();return;
+    }
     seal=await loadImg(c2.toDataURL('image/png'));
     $('sealPrev').src=seal.src;$('sealPrev').hidden=false;saveSettings();return;
   }
@@ -188,7 +202,7 @@ function savePdf(){
   const no=now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'-'+pad(now.getHours())+pad(now.getMinutes());
   const jd=now.getFullYear()+'年'+(now.getMonth()+1)+'月'+now.getDate()+'日 '+pad(now.getHours())+':'+pad(now.getMinutes());
   const karte='案件カルテ番号：'+($('karte').value||'未入力');
-  let titleY,bodyY,labelY,top,areaH;
+  let titleY,bodyY,labelY,top,areaH,sealBottom=0;
   g.fillStyle=GRAY;g.font='22px '+FONT;
   if(J){
     // 右上：カルテ番号と日付
@@ -196,17 +210,20 @@ function savePdf(){
     titleY=215;bodyY=300;labelY=355;top=372;areaH=1110;
   }else{
     // 左上：カルテ番号と日付／右上：名前と職印
-    g.textAlign='left';g.fillText(karte,M,110);g.fillText(jd,M,142);
+    // カルテ番号と日付は画像の下に描く
     const lines=$('myname').value.split('\n').filter(s=>s.trim());
     g.fillStyle='#222';g.textAlign='right';g.font='26px '+FONT;
-    lines.forEach((s,i)=>g.fillText(s,W-M-50,120+i*38));
+    // 事務所名は画像に含まれるので文字は描かない
     if(seal){
-      const k=Math.min(700/seal.width,340/seal.height);
+      const k=Math.min(480/seal.width,220/seal.height);
       const w=seal.width*k,h=seal.height*k;
       const cy=120+Math.max(0,lines.length-1)*38-9;
-      g.drawImage(seal,W-M-w,75,w,h);
+      g.drawImage(seal,W-M-w,75,w,h);sealBottom=75+h;
     }
-    titleY=460;bodyY=545;labelY=600;top=618;areaH=H-160-618;
+    const yb=Math.max(sealBottom,75)+40;
+    g.fillStyle=GRAY;g.textAlign='left';g.font='22px '+FONT;
+    g.fillText(karte,M,yb);g.fillText(jd,M,yb+32);
+    titleY=yb+110;bodyY=titleY+80;labelY=bodyY+55;top=labelY+18;areaH=H-160-top;
   }
   // タイトル
   g.fillStyle=NAVY;g.textAlign='center';g.font='bold 52px '+FONT;
