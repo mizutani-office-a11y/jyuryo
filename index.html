@@ -11,67 +11,77 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 body{font-family:sans-serif;margin:16px}
-button,label.btn{display:block;width:100%;padding:14px;margin:8px 0;font-size:18px;text-align:center;background:#1976d2;color:#fff;border:none;border-radius:8px}
+button,label.btn{display:block;width:100%;padding:14px;margin:8px 0;font-size:18px;text-align:center;background:#1976d2;color:#fff;border:none;border-radius:8px;box-sizing:border-box}
 label.btn{padding:8px;font-size:15px;width:60%;margin:8px auto}
+.tabs{display:flex;gap:8px}
+.tabs button{flex:1;margin:0 0 8px;background:#ddd;color:#333}
+.tabs button.on{background:#1f3a5f;color:#fff}
+input[type=text],textarea{width:100%;padding:12px;font-size:18px;box-sizing:border-box;border:1px solid #999;border-radius:8px}
 #photos img{width:30%;margin:1%;border:1px solid #ccc}
 #sig{border:2px solid #333;width:100%;height:200px;touch-action:none;background:#fff;box-sizing:border-box;display:block}
 @media (orientation:landscape){#sig{height:70vh}}
+details{border:1px solid #ccc;border-radius:8px;padding:8px 12px;margin-bottom:12px}
+summary{font-size:16px;font-weight:bold}
+#sealPrev{max-width:120px;max-height:120px;display:block;margin:8px auto}
 </style>
 </head>
 <body>
-<h2>受領書</h2>
-<input id="karte" placeholder="案件カルテ番号を入力" style="width:100%;padding:12px;font-size:18px;box-sizing:border-box;border:1px solid #999;border-radius:8px">
+<div class="tabs">
+  <button id="tabJ" onclick="setMode('juryo')">受領書</button>
+  <button id="tabA" onclick="setMode('azukari')">預かり証</button>
+</div>
+<h2 id="title">受領書</h2>
+<details id="setBox" hidden>
+<summary>名前・職印の設定</summary>
+<p>PDF右上に入る名前（改行で複数行にできます）</p>
+<textarea id="myname" rows="3" placeholder="例）〇〇事務所&#10;担当　〇〇"></textarea>
+<label class="btn">職印を撮影
+  <input type="file" accept="image/*" capture="environment" id="sealCam" hidden>
+</label>
+<small style="color:#666">※白い紙に押した職印を、明るい場所で真上から大きめに撮ってください</small>
+<img id="sealPrev" hidden>
+</details>
+<input type="text" id="karte" placeholder="案件カルテ番号を入力">
 <label class="btn">書類を撮影
   <input type="file" accept="image/*" capture="environment" id="cam" hidden>
 </label>
 <div id="photos"></div>
 <small style="color:#666">※写真をタップすると削除できます</small>
-<p>上記の書類を受け取りました。</p>
-<canvas id="sig"></canvas>
-<button onclick="clearSig()" style="background:#777">サインを消す</button>
+<div id="sigArea">
+  <p>上記の書類を受け取りました。</p>
+  <canvas id="sig"></canvas>
+  <button onclick="clearSig()" style="background:#777">サインを消す</button>
+</div>
 <button onclick="savePdf()">PDFで保存</button>
-
 <script>
-const photos=[];
-document.getElementById('cam').onchange=e=>{
-  const f=e.target.files[0]; if(!f)return;
-  const r=new FileReader();
-  r.onload=()=>{
-    const img=new Image();
-    img.onload=()=>{
-      photos.push(img);saveState();
-      // プレビュー表示（タップで削除）
-      addPreview(img);
-    };
-    img.src=r.result;
-  };
-  r.readAsDataURL(f); e.target.value='';
-};
-const cv=document.getElementById('sig'),ctx=cv.getContext('2d');
-function fit(){cv.width=cv.clientWidth;cv.height=cv.clientHeight;ctx.lineWidth=3;ctx.lineCap='round';}
-fit();
-// 画面回転時にサイン欄を作り直す（書いたサインは引き伸ばして残す）
-let rt;
-window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{
-  const old=document.createElement('canvas');old.width=cv.width;old.height=cv.height;
-  old.getContext('2d').drawImage(cv,0,0);
-  fit();
-  const s=Math.min(cv.width/old.width,cv.height/old.height);
-  const w=old.width*s,h=old.height*s;
-  ctx.drawImage(old,(cv.width-w)/2,(cv.height-h)/2,w,h);
-},200);});
-let drawing=false;
-const pos=e=>{const b=cv.getBoundingClientRect();return[e.clientX-b.left,e.clientY-b.top];};
-cv.onpointerdown=e=>{drawing=true;ctx.beginPath();ctx.moveTo(...pos(e));};
-cv.onpointermove=e=>{if(drawing){ctx.lineTo(...pos(e));ctx.stroke();}};
-cv.onpointerup=cv.onpointerleave=()=>{if(drawing){drawing=false;saveState();}};
-function clearSig(){ctx.clearRect(0,0,cv.width,cv.height);saveState();}
+const $=id=>document.getElementById(id);
+const photos=[];let seal=null,mode='juryo',pendingSig=null;
 
-// 保存前のデータをスマホ内（IndexedDB）に一時保存。電源を切っても残り、PDF保存後に自動で消える
+// ---- スマホ内（IndexedDB）への保存。ネットには送りません ----
 function db(){return new Promise((ok,ng)=>{const q=indexedDB.open('juryo',1);q.onupgradeneeded=()=>q.result.createObjectStore('s');q.onsuccess=()=>ok(q.result);q.onerror=()=>ng(q.error);});}
-async function put(v){const d=await db();return new Promise(ok=>{const t=d.transaction('s','readwrite');t.objectStore('s').put(v,'state');t.oncomplete=ok;});}
-async function get(){const d=await db();return new Promise(ok=>{const q=d.transaction('s').objectStore('s').get('state');q.onsuccess=()=>ok(q.result);});}
-function saveState(){put({karte:document.getElementById('karte').value,photos:photos.map(p=>p.src),sig:cv.toDataURL('image/png')}).catch(()=>{});}
+async function put(k,v){const d=await db();return new Promise(ok=>{const t=d.transaction('s','readwrite');t.objectStore('s').put(v,k);t.oncomplete=ok;});}
+async function get(k){const d=await db();return new Promise(ok=>{const q=d.transaction('s').objectStore('s').get(k);q.onsuccess=()=>ok(q.result);});}
+function sigData(){return (cv.width&&cv.height)?cv.toDataURL('image/png'):pendingSig;}
+function saveState(){put('state',{karte:$('karte').value,photos:photos.map(p=>p.src),sig:sigData()}).catch(()=>{});}
+function saveSettings(){put('settings',{mode,name:$('myname').value,seal:seal?seal.src:null}).catch(()=>{});}
+function loadImg(src){return new Promise(ok=>{const i=new Image();i.onload=()=>ok(i);i.src=src;});}
+function readFile(f){return new Promise(ok=>{const r=new FileReader();r.onload=()=>ok(r.result);r.readAsDataURL(f);});}
+
+// ---- 受領書／預かり証の切り替え ----
+function setMode(m){
+  mode=m;
+  $('tabJ').classList.toggle('on',m==='juryo');
+  $('tabA').classList.toggle('on',m==='azukari');
+  $('title').textContent=m==='juryo'?'受領書':'預かり証';
+  document.title=$('title').textContent;
+  $('sigArea').hidden=m!=='juryo';
+  $('setBox').hidden=m!=='azukari';
+  if(m==='azukari'&&(!$('myname').value.trim()||!seal))$('setBox').open=true;
+  if(m==='juryo')refit();
+  saveSettings();
+}
+
+// ---- 書類の写真 ----
 function addPreview(img){
   const t=document.createElement('img');t.src=img.src;
   t.onclick=()=>{
@@ -79,68 +89,130 @@ function addPreview(img){
     const i=photos.indexOf(img);if(i>=0)photos.splice(i,1);
     t.remove();saveState();
   };
-  document.getElementById('photos').appendChild(t);
+  $('photos').appendChild(t);
 }
-function resetAll(){photos.length=0;document.getElementById('photos').innerHTML='';document.getElementById('karte').value='';ctx.clearRect(0,0,cv.width,cv.height);put(null).catch(()=>{});}
-document.getElementById('karte').addEventListener('input',saveState);
-// 起動時に前回のデータを復元
-get().then(s=>{
-  if(!s)return;
-  document.getElementById('karte').value=s.karte||'';
-  (s.photos||[]).forEach(src=>{
-    const img=new Image();img.src=src;photos.push(img);
-    // 復元した写真のプレビュー
-    addPreview(img);
-  });
-  if(s.sig){const si=new Image();si.onload=()=>{
-    const k=Math.min(cv.width/si.width,cv.height/si.height);
-    const w=si.width*k,h=si.height*k;
-    ctx.drawImage(si,(cv.width-w)/2,(cv.height-h)/2,w,h);
-  };si.src=s.sig;}
-}).catch(()=>{});
+$('cam').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  const img=await loadImg(await readFile(f));
+  photos.push(img);addPreview(img);saveState();
+};
+$('karte').addEventListener('input',saveState);
+$('myname').addEventListener('input',saveSettings);
 
-// アイコン画像を作って保存（アイコン設定が終わったら消してOK）
-function saveIcon(){
-  const c=document.createElement('canvas');c.width=512;c.height=512;
-  const g=c.getContext('2d');
-  g.fillStyle='#1f3a5f';g.fillRect(0,0,512,512);
-  g.strokeStyle='#fff';g.lineWidth=6;g.strokeRect(70,70,372,372);
-  g.lineWidth=2;g.strokeRect(84,84,344,344);
-  g.fillStyle='#fff';g.textAlign='center';g.textBaseline='middle';
-  g.font='bold 240px "Noto Serif JP",serif';g.fillText('受',256,266);
-  const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='icon.png';a.click();
+// ---- サイン欄（受領書） ----
+const cv=$('sig'),ctx=cv.getContext('2d');
+function fit(){cv.width=cv.clientWidth;cv.height=cv.clientHeight;ctx.lineWidth=3;ctx.lineCap='round';}
+function drawFit(src){const s=Math.min(cv.width/src.width,cv.height/src.height);const w=src.width*s,h=src.height*s;ctx.drawImage(src,(cv.width-w)/2,(cv.height-h)/2,w,h);}
+function refit(){
+  let old=null;
+  if(cv.width&&cv.height){old=document.createElement('canvas');old.width=cv.width;old.height=cv.height;old.getContext('2d').drawImage(cv,0,0);}
+  fit();
+  if(!cv.width||!cv.height)return;
+  if(old)drawFit(old);
+  else if(pendingSig){const p=pendingSig;pendingSig=null;loadImg(p).then(drawFit);}
 }
+let rt;
+window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{if(mode==='juryo')refit();},200);});
+let drawing=false;
+const pos=e=>{const b=cv.getBoundingClientRect();return[e.clientX-b.left,e.clientY-b.top];};
+cv.onpointerdown=e=>{drawing=true;ctx.beginPath();ctx.moveTo(...pos(e));};
+cv.onpointermove=e=>{if(drawing){ctx.lineTo(...pos(e));ctx.stroke();}};
+cv.onpointerup=cv.onpointerleave=()=>{if(drawing){drawing=false;saveState();}};
+function clearSig(){ctx.clearRect(0,0,cv.width,cv.height);pendingSig=null;saveState();}
 
-// A4を1枚の画像として組み立ててPDF化
+// ---- 職印（預かり証）：朱色だけ残して背景を透明にし、余白を切り取る ----
+$('sealCam').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  const src=await loadImg(await readFile(f));
+  const s=Math.min(1,800/Math.max(src.width,src.height));
+  const c=document.createElement('canvas');c.width=Math.round(src.width*s);c.height=Math.round(src.height*s);
+  const g=c.getContext('2d');g.drawImage(src,0,0,c.width,c.height);
+  const d=g.getImageData(0,0,c.width,c.height),p=d.data;
+  let x0=c.width,y0=c.height,x1=-1,y1=-1;
+  for(let i=0;i<p.length;i+=4){
+    const red=p[i]-Math.max(p[i+1],p[i+2]);
+    if(red<40){p[i+3]=0;continue;}
+    p[i]=200;p[i+1]=30;p[i+2]=30;p[i+3]=Math.min(255,red*3);
+    const x=(i/4)%c.width,y=Math.floor(i/4/c.width);
+    if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;
+  }
+  if(x1<0){alert('職印がうまく読み取れませんでした。明るい場所で撮り直してください');return;}
+  g.putImageData(d,0,0);
+  const o=document.createElement('canvas');o.width=x1-x0+1;o.height=y1-y0+1;
+  o.getContext('2d').drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);
+  seal=await loadImg(o.toDataURL('image/png'));
+  $('sealPrev').src=seal.src;$('sealPrev').hidden=false;saveSettings();
+};
+
+// ---- 起動時に前回の状態を復元 ----
+(async()=>{
+  let st=null;
+  try{
+    st=await get('settings');
+    if(st){
+      $('myname').value=st.name||'';
+      if(st.seal){seal=await loadImg(st.seal);$('sealPrev').src=seal.src;$('sealPrev').hidden=false;}
+    }
+    const s=await get('state');
+    if(s){
+      $('karte').value=s.karte||'';
+      for(const src of s.photos||[]){const img=await loadImg(src);photos.push(img);addPreview(img);}
+      if(s.sig&&s.sig.length>30)pendingSig=s.sig;
+    }
+  }catch(e){}
+  setMode(st&&st.mode==='azukari'?'azukari':'juryo');
+})();
+function resetAll(){photos.length=0;$('photos').innerHTML='';$('karte').value='';ctx.clearRect(0,0,cv.width,cv.height);pendingSig=null;put('state',null).catch(()=>{});}
+
+// ---- PDF作成 ----
 function savePdf(){
   if(!photos.length){alert('書類を撮影してください');return;}
-  const W=1240,H=1754,M=90,NAVY='#1f3a5f',GRAY='#666';
+  const J=mode==='juryo';
+  if(!J&&!$('myname').value.trim()&&!seal){if(!confirm('名前と職印が未設定です。このまま作成しますか？'))return;}
+  const W=1240,H=1754,M=90,NAVY='#1f3a5f',GRAY='#666',SC=3;
   const FONT='"Noto Serif JP","Yu Mincho",serif';
-  const pg=document.createElement('canvas');pg.width=W*3;pg.height=H*3;
-  const g=pg.getContext('2d');g.scale(3,3);g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';
+  const pg=document.createElement('canvas');pg.width=W*SC;pg.height=H*SC;
+  const g=pg.getContext('2d');g.scale(SC,SC);g.imageSmoothingQuality='high';
   g.fillStyle='#fff';g.fillRect(0,0,W,H);
   // 外枠（二重線）
   g.strokeStyle=NAVY;g.lineWidth=4;g.strokeRect(40,40,W-80,H-80);
   g.lineWidth=1;g.strokeRect(52,52,W-104,H-104);
-  const now=new Date();
-  const pad=n=>String(n).padStart(2,'0');
+  const now=new Date(),pad=n=>String(n).padStart(2,'0');
   const no=now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'-'+pad(now.getHours())+pad(now.getMinutes());
   const jd=now.getFullYear()+'年'+(now.getMonth()+1)+'月'+now.getDate()+'日 '+pad(now.getHours())+':'+pad(now.getMinutes());
-  // 右上：案件カルテ番号と日付
-  g.fillStyle=GRAY;g.textAlign='right';g.font='22px '+FONT;
-  g.fillText('案件カルテ番号：'+(document.getElementById('karte').value||'未入力'),W-M,110);
-  g.fillText(jd,W-M,142);
-  // タイトル（小さめ）
+  const karte='案件カルテ番号：'+($('karte').value||'未入力');
+  let titleY,bodyY,labelY,top,areaH;
+  g.fillStyle=GRAY;g.font='22px '+FONT;
+  if(J){
+    // 右上：カルテ番号と日付
+    g.textAlign='right';g.fillText(karte,W-M,110);g.fillText(jd,W-M,142);
+    titleY=215;bodyY=300;labelY=355;top=372;areaH=1110;
+  }else{
+    // 左上：カルテ番号と日付／右上：名前と職印
+    g.textAlign='left';g.fillText(karte,M,110);g.fillText(jd,M,142);
+    const lines=$('myname').value.split('\n').filter(s=>s.trim());
+    g.fillStyle='#222';g.textAlign='right';g.font='26px '+FONT;
+    lines.forEach((s,i)=>g.fillText(s,W-M-50,120+i*38));
+    if(seal){
+      const sz=100,k=Math.min(sz/seal.width,sz/seal.height);
+      const w=seal.width*k,h=seal.height*k;
+      const cy=120+Math.max(0,lines.length-1)*38-9;
+      g.globalAlpha=0.9;g.drawImage(seal,W-M-w+10,cy-h/2,w,h);g.globalAlpha=1;
+    }
+    titleY=270;bodyY=355;labelY=410;top=428;areaH=H-160-428;
+  }
+  // タイトル
   g.fillStyle=NAVY;g.textAlign='center';g.font='bold 52px '+FONT;
-  g.fillText('受　領　書',W/2,215);
-  g.fillRect(W/2-150,235,300,3);g.fillRect(W/2-150,243,300,1.5);
+  g.fillText(J?'受　領　書':'預　か　り　証',W/2,titleY);
+  const lw=J?150:170;
+  g.fillRect(W/2-lw,titleY+20,lw*2,3);g.fillRect(W/2-lw,titleY+28,lw*2,1.5);
   // 本文
   g.fillStyle='#222';g.font='26px '+FONT;
-  g.fillText('下記の書類を確かに受領いたしました。',W/2,300);
-  // 写真エリア（大きく・横並び）
+  g.fillText(J?'下記の書類を確かに受領いたしました。':'下記の書類を確かにお預かりいたしました。',W/2,bodyY);
+  // 写真エリア（横並び・最大3列）
   g.textAlign='left';g.fillStyle=NAVY;g.font='bold 24px '+FONT;
-  g.fillText('■ 受領書類（'+photos.length+'点）',M,355);
-  const top=372,areaH=1110,gap=18,inner=16;
+  g.fillText((J?'■ 受領書類（':'■ お預かり書類（')+photos.length+'点）',M,labelY);
+  const gap=18,inner=16;
   g.fillStyle='#f5f7fa';g.fillRect(M,top,W-2*M,areaH);
   const n=photos.length,cols=Math.min(n,3),rows=Math.ceil(n/cols);
   const aw=W-2*M-2*inner,ah=areaH-2*inner;
@@ -160,16 +232,21 @@ function savePdf(){
     g.fillText('書類 '+(i+1),cx+cw/2,cy+ch+24);
     g.textAlign='left';
   });
-  // 署名欄（小さめ）
-  const sy=1530;
-  g.fillStyle=NAVY;g.font='bold 24px '+FONT;
-  g.fillText('■ 受領者署名',M,sy);
-  const sh=120,sw=Math.min(520,sh*cv.width/cv.height);
-  g.drawImage(cv,M,sy+12,sw,sh);
-  g.strokeStyle='#333';g.lineWidth=2;
-  g.beginPath();g.moveTo(M,sy+12+sh);g.lineTo(M+520,sy+12+sh);g.stroke();
-  g.fillStyle=GRAY;g.font='20px '+FONT;g.textAlign='right';
-  g.fillText('受領日時：'+jd,W-M,sy+12+sh);
+  if(J){
+    // 署名欄（小さめ）
+    const sy=1530;
+    g.fillStyle=NAVY;g.font='bold 24px '+FONT;
+    g.fillText('■ 受領者署名',M,sy);
+    const sh=120,sw=(cv.width&&cv.height)?Math.min(520,sh*cv.width/cv.height):520;
+    if(cv.width&&cv.height)g.drawImage(cv,M,sy+12,sw,sh);
+    g.strokeStyle='#333';g.lineWidth=2;
+    g.beginPath();g.moveTo(M,sy+12+sh);g.lineTo(M+520,sy+12+sh);g.stroke();
+    g.fillStyle=GRAY;g.font='20px '+FONT;g.textAlign='right';
+    g.fillText('受領日時：'+jd,W-M,sy+12+sh);
+  }else{
+    g.fillStyle=GRAY;g.font='22px '+FONT;g.textAlign='right';
+    g.fillText('お預かり日時：'+jd,W-M,H-110);
+  }
   const {jsPDF}=window.jspdf;
   const pdf=new jsPDF({format:'a4'});
   pdf.addImage(pg.toDataURL('image/jpeg',0.92),'JPEG',0,0,210,297);
@@ -183,7 +260,7 @@ function savePdf(){
     tg.drawImage(s.img,0,0,t.width,t.height);
     pdf.addImage(t.toDataURL('image/jpeg',0.85),'JPEG',s.x*k,s.y*k,s.w*k,s.h*k);
   });
-  pdf.save('受領書_'+no+'.pdf');
+  pdf.save((J?'受領書_':'預かり証_')+no+'.pdf');
   resetAll();
 }
 </script>
