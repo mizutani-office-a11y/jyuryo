@@ -259,29 +259,11 @@ function savePdf(){
     // 事務所名は画像に含まれるので文字は描かない
     if(seal){
       // 職印が縦横18mmになるように画像全体を拡大縮小（A4幅210mm＝W）
-      const rs=redSize(seal);
-      const k=rs?Math.min((18*W/210)/rs,(W-2*M)/seal.width):Math.min(W*0.27/seal.width,330/seal.height);
+      const k=Math.min(W*0.27/seal.width,330/seal.height);
       const w=seal.width*k,h=seal.height*k;
       const cy=120+Math.max(0,lines.length-1)*38-9;
-      // 職印＝縦横18mm、事務所名＝5行で高さ約30mm（1文字4mm前後）に別々に合わせる
-      const sp=splitSeal(seal),mm=W/210,y0=330;
-      let bottom=y0;
-      const sz=sp.seal?18*mm:0;
-      let sw=0,sh=0;
-      if(sp.seal){const sk=sz/Math.max(sp.seal.width,sp.seal.height);sw=sp.seal.width*sk;sh=sp.seal.height*sk;}
-      if(sp.name){
-        let nh=30*mm,nw=sp.name.width*nh/sp.name.height;
-        const maxW=W-2*M-sw*0.6;
-        if(nw>maxW){nh*=maxW/nw;nw=maxW;}
-        g.drawImage(sp.name,W-M-sw*0.6-nw,y0,nw,nh);
-        bottom=y0+nh;
-        if(sp.seal){const cy=y0+nh*0.9;g.drawImage(sp.seal,W-M-sw,cy-sh/2,sw,sh);bottom=Math.max(bottom,cy+sh/2);}
-      }else if(sp.seal){
-        g.drawImage(sp.seal,W-M-sw,y0,sw,sh);bottom=y0+sh;
-      }else{
-        g.drawImage(seal,W-M-w,y0,w,h);bottom=y0+h;
-      }
-      sealBottom=bottom;
+      // 画像全体を横幅27%で、元の画像のまま貼る
+      g.drawImage(seal,W-M-w,330,w,h);sealBottom=330+h;
     }
     const yb=110;
     g.fillStyle=GRAY;g.textAlign='left';g.font='22px '+FONT;
