@@ -201,12 +201,12 @@ function savePdf(){
     g.fillStyle='#222';g.textAlign='right';g.font='26px '+FONT;
     lines.forEach((s,i)=>g.fillText(s,W-M-50,120+i*38));
     if(seal){
-      const k=Math.min(440/seal.width,170/seal.height);
+      const k=Math.min(700/seal.width,340/seal.height);
       const w=seal.width*k,h=seal.height*k;
       const cy=120+Math.max(0,lines.length-1)*38-9;
       g.drawImage(seal,W-M-w,75,w,h);
     }
-    titleY=270;bodyY=355;labelY=410;top=428;areaH=H-160-428;
+    titleY=460;bodyY=545;labelY=600;top=618;areaH=H-160-618;
   }
   // タイトル
   g.fillStyle=NAVY;g.textAlign='center';g.font='bold 52px '+FONT;
