@@ -32,13 +32,13 @@ summary{font-size:16px;font-weight:bold}
 </div>
 <h2 id="title">受領書</h2>
 <details id="setBox" hidden>
-<summary>名前・職印の設定</summary>
-<p>PDF右上に入る名前（改行で複数行にできます）</p>
-<textarea id="myname" rows="3" placeholder="例）〇〇事務所&#10;担当　〇〇"></textarea>
-<label class="btn">職印を撮影
-  <input type="file" accept="image/*" capture="environment" id="sealCam" hidden>
+<summary>事務所名・職印の画像</summary>
+<p>事務所名と職印が入ったPNG画像を選んでください。PDFの右上にそのまま入ります。</p>
+<textarea id="myname" hidden rows="3" placeholder="例）〇〇事務所&#10;担当　〇〇"></textarea>
+<label class="btn">画像を選ぶ（PNG）
+  <input type="file" accept="image/png,image/*" id="sealCam" hidden>
 </label>
-<small style="color:#666">※白い紙に押した職印を、明るい場所で真上から大きめに撮ってください</small>
+<small style="color:#666">※一度選べばスマホの中に残るので、次回からは不要です</small>
 <img id="sealPrev" hidden>
 </details>
 <input type="text" id="karte" placeholder="案件カルテ番号を入力">
@@ -76,7 +76,7 @@ function setMode(m){
   document.title=$('title').textContent;
   $('sigArea').hidden=m!=='juryo';
   $('setBox').hidden=m!=='azukari';
-  if(m==='azukari'&&(!$('myname').value.trim()||!seal))$('setBox').open=true;
+  if(m==='azukari'&&!seal)$('setBox').open=true;
   if(m==='juryo')refit();
   saveSettings();
 }
@@ -124,6 +124,13 @@ function clearSig(){ctx.clearRect(0,0,cv.width,cv.height);pendingSig=null;saveSt
 $('sealCam').onchange=async e=>{
   const f=e.target.files[0];e.target.value='';if(!f)return;
   const src=await loadImg(await readFile(f));
+  {// PNG画像をそのまま取り込む（大きすぎる場合だけ縮小）
+    const r=Math.min(1,1200/Math.max(src.width,src.height));
+    const c2=document.createElement('canvas');c2.width=Math.round(src.width*r);c2.height=Math.round(src.height*r);
+    c2.getContext('2d').drawImage(src,0,0,c2.width,c2.height);
+    seal=await loadImg(c2.toDataURL('image/png'));
+    $('sealPrev').src=seal.src;$('sealPrev').hidden=false;saveSettings();return;
+  }
   const s=Math.min(1,800/Math.max(src.width,src.height));
   const c=document.createElement('canvas');c.width=Math.round(src.width*s);c.height=Math.round(src.height*s);
   const g=c.getContext('2d');g.drawImage(src,0,0,c.width,c.height);
@@ -168,7 +175,7 @@ function resetAll(){photos.length=0;$('photos').innerHTML='';$('karte').value=''
 function savePdf(){
   if(!photos.length){alert('書類を撮影してください');return;}
   const J=mode==='juryo';
-  if(!J&&!$('myname').value.trim()&&!seal){if(!confirm('名前と職印が未設定です。このまま作成しますか？'))return;}
+  if(!J&&!seal){if(!confirm('事務所名・職印の画像が未設定です。このまま作成しますか？'))return;}
   const W=1240,H=1754,M=90,NAVY='#1f3a5f',GRAY='#666',SC=3;
   const FONT='"Noto Serif JP","Yu Mincho",serif';
   const pg=document.createElement('canvas');pg.width=W*SC;pg.height=H*SC;
@@ -194,10 +201,10 @@ function savePdf(){
     g.fillStyle='#222';g.textAlign='right';g.font='26px '+FONT;
     lines.forEach((s,i)=>g.fillText(s,W-M-50,120+i*38));
     if(seal){
-      const sz=100,k=Math.min(sz/seal.width,sz/seal.height);
+      const k=Math.min(440/seal.width,170/seal.height);
       const w=seal.width*k,h=seal.height*k;
       const cy=120+Math.max(0,lines.length-1)*38-9;
-      g.globalAlpha=0.9;g.drawImage(seal,W-M-w+10,cy-h/2,w,h);g.globalAlpha=1;
+      g.drawImage(seal,W-M-w,75,w,h);
     }
     titleY=270;bodyY=355;labelY=410;top=428;areaH=H-160-428;
   }
