@@ -245,7 +245,7 @@ function savePdf(){
   const no=now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'-'+pad(now.getHours())+pad(now.getMinutes());
   const jd=now.getFullYear()+'年'+(now.getMonth()+1)+'月'+now.getDate()+'日 '+pad(now.getHours())+':'+pad(now.getMinutes());
   const karte='案件カルテ番号：'+($('karte').value||'未入力');
-  let titleY,bodyY,labelY,top,areaH,sealBottom=0;
+  let titleY,bodyY,labelY,top,areaH,sealBottom=0,sw2=0,sh2=0;
   g.fillStyle=GRAY;g.font='22px '+FONT;
   if(J){
     // 右上：カルテ番号と日付
@@ -263,13 +263,13 @@ function savePdf(){
       const w=seal.width*k,h=seal.height*k;
       const cy=120+Math.max(0,lines.length-1)*38-9;
       // 画像全体を横幅27%で、元の画像のまま貼る
-      g.drawImage(seal,W-M-w,75,w,h);sealBottom=75+h;
+      sw2=w;sh2=h;// 画像は写真欄の下・中央に描く
     }
     // 日付の行が画像の下端にそろうように置く
-    const yb=Math.max(142,sealBottom)-32;
+    const yb=110;
     g.fillStyle=GRAY;g.textAlign='left';g.font='22px '+FONT;
-    g.fillText(karte,M,yb);g.fillText(jd,M,yb+32);
-    titleY=yb+32+75;bodyY=titleY+85;labelY=bodyY+55;top=labelY+18;areaH=H-160-top;
+    g.fillText(karte,M,yb);g.fillText('お預かり日時：'+jd,M,yb+32);
+    titleY=yb+32+75;bodyY=titleY+85;labelY=bodyY+55;top=labelY+18;areaH=H-110-top-(sh2?sh2+30:0);
   }
   // タイトル
   g.fillStyle=NAVY;g.textAlign='center';g.font='bold 52px '+FONT;
@@ -315,7 +315,7 @@ function savePdf(){
     g.fillText('受領日時：'+jd,W-M,sy+12+sh);
   }else{
     g.fillStyle=GRAY;g.font='22px '+FONT;g.textAlign='right';
-    g.fillText('お預かり日時：'+jd,W-M,H-110);
+    if(seal)g.drawImage(seal,(W-sw2)/2,top+areaH+20,sw2,sh2);
   }
   const {jsPDF}=window.jspdf;
   const pdf=new jsPDF({format:'a4'});
