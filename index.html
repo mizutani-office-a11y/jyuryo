@@ -233,7 +233,7 @@ function savePdf(){
   if(!photos.length){alert('書類を撮影してください');return;}
   const J=mode==='juryo';
   if(!J&&!seal){if(!confirm('事務所名・職印の画像が未設定です。このまま作成しますか？'))return;}
-  const W=1240,H=1754,M=90,NAVY='#1f3a5f',GRAY='#666',SC=3;
+  const W=1240,H=1754,M=90,NAVY='#000',GRAY='#666',SC=3;
   const FONT='"Noto Serif JP","Yu Mincho",serif';
   const pg=document.createElement('canvas');pg.width=W*SC;pg.height=H*SC;
   const g=pg.getContext('2d');g.scale(SC,SC);g.imageSmoothingQuality='high';
@@ -248,7 +248,7 @@ function savePdf(){
   g.fillStyle=GRAY;g.font='22px '+FONT;
   if(J){
     // 右上：カルテ番号と日付
-    g.textAlign='right';g.fillText(karte,W-M,110);g.fillText(jd,W-M,142);
+    g.textAlign='left';g.fillText(karte,M,110);g.fillText('受領日時：'+jd,M,142);
     titleY=215;bodyY=300;labelY=355;top=372;areaH=1110;
   }else{
     // 左上：カルテ番号と日付／右上：名前と職印
@@ -312,7 +312,7 @@ function savePdf(){
     g.strokeStyle='#333';g.lineWidth=2;
     g.beginPath();g.moveTo(M,sy+12+sh);g.lineTo(M+520,sy+12+sh);g.stroke();
     g.fillStyle=GRAY;g.font='20px '+FONT;g.textAlign='right';
-    g.fillText('受領日時：'+jd,W-M,sy+12+sh);
+    // 右下の受領日時はなし（右上に表示）
   }else{
     g.fillStyle=GRAY;g.font='22px '+FONT;g.textAlign='right';
     if(seal)g.drawImage(seal,(W-sw2)/2,top+areaH+20,sw2,sh2);
