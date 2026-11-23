@@ -239,8 +239,7 @@ function savePdf(){
   const g=pg.getContext('2d');g.scale(SC,SC);g.imageSmoothingQuality='high';
   g.fillStyle='#fff';g.fillRect(0,0,W,H);
   // 外枠（二重線）
-  g.strokeStyle=NAVY;g.lineWidth=4;g.strokeRect(40,40,W-80,H-80);
-  g.lineWidth=1;g.strokeRect(52,52,W-104,H-104);
+  // 外枠はなし
   const now=new Date(),pad=n=>String(n).padStart(2,'0');
   const no=now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'-'+pad(now.getHours())+pad(now.getMinutes());
   const jd=now.getFullYear()+'年'+(now.getMonth()+1)+'月'+now.getDate()+'日 '+pad(now.getHours())+':'+pad(now.getMinutes());
@@ -284,6 +283,7 @@ function savePdf(){
   g.fillText((J?'■ 受領書類（':'■ お預かり書類（')+photos.length+'点）',M,labelY);
   const gap=18,inner=16;
   g.fillStyle='#f5f7fa';g.fillRect(M,top,W-2*M,areaH);
+  g.strokeStyle='#000';g.lineWidth=2;g.strokeRect(M,top,W-2*M,areaH);
   const n=photos.length,cols=Math.min(n,3),rows=Math.ceil(n/cols);
   const aw=W-2*M-2*inner,ah=areaH-2*inner;
   const cw=(aw-gap*(cols-1))/cols,ch=(ah-gap*(rows-1))/rows-28;
